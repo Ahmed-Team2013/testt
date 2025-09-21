@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>ERP-like Projects Dashboard</title>
+
+<!-- Bootstrap 5 -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+:root{
+  --bg:#f4f6fb; --card:#ffffff; --accent:#0d6efd; --muted:#6c757d; --radius:12px;
+}
+body{ font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:#222; }
+.app { display:grid; grid-template-columns:260px 1fr; gap:20px; min-height:100vh; padding:20px; }
+.sidebar { background: linear-gradient(180deg,#0b61e6 0%, #0d6efd 80%); color:#fff; border-radius:var(--radius); padding:18px; box-shadow: 0 6px 20px rgba(13,110,253,0.15); }
+.sidebar .brand { font-weight:700; font-size:1.1rem; margin-bottom:14px; display:flex; gap:10px; align-items:center; }
+.sidebar .nav-link { color:rgba(255,255,255,0.95); border-radius:8px; padding:8px 10px; margin-bottom:6px; display:flex; align-items:center; gap:10px;}
+.sidebar .nav-link.active, .sidebar .nav-link:hover{ background: rgba(255,255,255,0.08); color:#fff; }
+.main { padding: 16px; }
+.topbar { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }
+.searchbox{ width:320px; max-width:40vw; }
+.card-stats .card{ border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,0.06); }
+.card-project{ border-radius:10px; background:var(--card); box-shadow:0 6px 20px rgba(31,45,61,0.04); }
+.status-chip{ padding:6px 10px; border-radius:999px; font-weight:600; font-size:0.85rem; display:inline-block; }
+.s-under{ background:#eef5ff; color:var(--accent); border:1px solid #dbeeff; }
+.s-order{ background:#eff8f3; color:#198754; border:1px solid #cfeee0; }
+.s-lost{ background:#fff2f2; color:#b02a37; border:1px solid #ffd9d9; }
+.table-modern thead th { background: #0d6efd; color:#fff; border: none; font-weight:600; }
+.table-modern tbody td { vertical-align: middle; }
+.small-muted{ color:var(--muted); font-size:0.9rem; }
+#loginWrap{ min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg); }
+@media (max-width:900px){ .app{ grid-template-columns: 1fr; padding:12px; } .sidebar{ display:flex; gap:10px; overflow:auto; } }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginWrap">
+  <div class="card p-4 shadow-sm" style="width:460px; border-radius:12px;">
+    <h4 class="mb-1">تسجيل دخول النظام</h4>
+    <p class="small-muted mb-3">أدخل اسم المستخدم وكلمة المرور للوصول إلى لوحة التحكم</p>
+    <div class="mb-3">
+      <input id="loginUser" class="form-control" placeholder="اسم المستخدم">
+    </div>
+    <div class="mb-3">
+      <input id="loginPass" type="password" class="form-control" placeholder="كلمة المرور">
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary flex-grow-1" onclick="handleLogin()">دخول</button>
+      <button class="btn btn-outline-secondary" onclick="fillDemo()">عرض تجريبي</button>
+    </div>
+    <hr class="my-3">
+    <small class="text-muted">الحسابات الافتراضية: <strong>وائل/123</strong>، <strong>هدان/123</strong>، <strong>حسن/123</strong>، مدير: <strong>admin/admin</strong></small>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appRoot" class="app" style="display:none;">
+  <aside class="sidebar">
+    <div class="brand"><i class="bi bi-kanban-fill" style="font-size:1.25rem"></i> <span>Projects ERP</span></div>
+    <div class="mb-3 small-muted">مرحباً، <span id="sbUserName" style="font-weight:700;color:#fff"></span></div>
+    <div>
+      <a href="#" class="nav-link d-flex align-items-center active" onclick="showPane('dashboard')"><i class="bi bi-speedometer2"></i> لوحة التحكم</a>
+      <a href="#" class="nav-link d-flex align-items-center" onclick="showPane('projects')"><i class="bi bi-briefcase-fill"></i> المشاريع</a>
+      <a href="#" class="nav-link d-flex align-items-center" onclick="showPane('add')"><i class="bi bi-plus-circle"></i> إضافة مشروع</a>
+      <a href="#" class="nav-link d-flex align-items-center" onclick="document.getElementById('fileImport').click()"><i class="bi bi-upload"></i> استيراد من Excel</a>
+      <a href="#" class="nav-link d-flex align-items-center" onclick="exportToExcel()"><i class="bi bi-download"></i> تصدير Excel</a>
+      <a href="#" class="nav-link d-flex align-items-center" onclick="showPane('users')" id="navUsers" style="display:none;"><i class="bi bi-people-fill"></i> إدارة المستخدمين</a>
+    </div>
+    <div style="position:absolute; bottom:18px; left:18px; right:18px;">
+      <div class="d-flex gap-2">
+        <button class="btn btn-light w-100" onclick="logout()"><i class="bi bi-box-arrow-left"></i> خروج</button>
+      </div>
+      <small class="d-block mt-2 text-white-50">يتم حفظ البيانات محليًا (Local Storage)</small>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h3 id="pageTitle">لوحة التحكم</h3>
+        <div class="small-muted">عرض سريع للمشاريع وادارتها</div>
+      </div>
+      <div class="d-flex gap-2 align-items-center">
+        <input id="globalSearch" class="form-control searchbox" placeholder="ابحث عن مشروع أو مبيعات أو مهندس..." oninput="renderProjects()" />
+        <div class="btn-group">
+          <select id="filterStatus" class="form-select" onchange="renderProjects()">
+            <option value="all">الكل</option>
+            <option value="تحت الدراسة">تحت الدراسة</option>
+            <option value="أصبح أوردر">أصبح أوردر</option>
+            <option value="خسرنا المشروع">خسرنا المشروع</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <section id="pane-dashboard">
+      <div class="row mb-3 card-stats">
+        <div class="col-md-4 mb-2">
+          <div class="card under p-3 text-white d-flex align-items-center justify-content-between" style="background:linear-gradient(90deg,#2b7bff,#0d6efd);">
+            <div><div style="font-size:0.9rem">تحت الدراسة</div><div id="statUnder" style="font-size:1.5rem; font-weight:700">0</div></div>
+            <i class="bi bi-hourglass-split" style="font-size:2rem; opacity:0.9"></i>
+          </div>
+        </div>
+        <div class="col-md-4 mb-2">
+          <div class="card order p-3 text-white d-flex align-items-center justify-content-between" style="background:linear-gradient(90deg,#17bf6b,#138a45);">
+            <div><div style="font-size:0.9rem">أصبح أوردر</div><div id="statOrder" style="font-size:1.5rem; font-weight:700">0</div></div>
+            <i class="bi bi-check2-circle" style="font-size:2rem; opacity:0.9"></i>
+          </div>
+        </div>
+        <div class="col-md-4 mb-2">
+          <div class="card lost p-3 text-white d-flex align-items-center justify-content-between" style="background:linear-gradient(90deg,#ff6b6b,#d33b3b);">
+            <div><div style="font-size:0.9rem">خسرنا المشروع</div><div id="statLost" style="font-size:1.5rem; font-weight:700">0</div></div>
+            <i class="bi bi-x-circle" style="font-size:2rem; opacity:0.9"></i>
+          </div>
+        </div>
+      </div>
+      <div class="row" id="recentProjects"></div>
+    </section>
+
+    <!-- PROJECTS TABLE -->
+    <section id="pane-projects" style="display:none;">
+      <div class="card p-3 mb-3">
+        <h5>قائمة المشاريع</h5>
+        <div class="small-muted">عرض تفصيلي مع إمكانية التعديل السريع</div>
+      </div>
+      <div class="card p-3 mb-3">
+        <div class="table-responsive">
+          <table class="table table-modern table-striped">
+            <thead>
+              <tr>
+                <th>اسم المشروع</th><th>المبيعات</th><th>المهندس</th><th>الحالة</th><th>وقت الإضافة</th><th>وقت بدء الدراسة</th><th>إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="projectsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADD PROJECT -->
+    <section id="pane-add" style="display:none;">
+      <div class="card p-3 mb-3">
+        <h5>إضافة مشروع جديد</h5>
+        <div class="row g-2 mt-2">
+          <div class="col-md-4"><input id="add_name" class="form-control" placeholder="اسم المشروع"></div>
+          <div class="col-md-3"><select id="add_sales" class="form-select"></select></div>
+          <div class="col-md-3"><select id="add_engineer" class="form-select"><option value="">- اختر مهندس -</option></select></div>
+          <div class="col-md-2"><select id="add_status" class="form-select">
+            <option value="تحت الدراسة">تحت الدراسة</option>
+            <option value="أصبح أوردر">أصبح أوردر</option>
+            <option value="خسرنا المشروع">خسرنا المشروع</option>
+          </select></div>
+        </div>
+        <div class="mt-3"><button class="btn btn-primary" onclick="addProjectFromForm()">إضافة مشروع</button></div>
+      </div>
+    </section>
+
+    <!-- USERS MANAGEMENT -->
+    <section id="pane-users" style="display:none;">
+      <div class="card p-3 mb-3">
+        <h5>إدارة المستخدمين</h5>
+        <div class="row g-2 mt-2 align-items-center">
+          <div class="col-md-3"><input id="new_user" class="form-control" placeholder="اسم المستخدم جديد"></div>
+          <div class="col-md-3"><input id="new_pass" class="form-control" placeholder="كلمة المرور"></div>
+          <div class="col-md-3"><select id="new_role" class="form-select"><option value="sales">مبيعات</option><option value="engineer">مهندس</option><option value="manager">مدير</option></select></div>
+          <div class="col-md-3"><button class="btn btn-warning" onclick="createUser()">إضافة مستخدم</button></div>
+        </div>
+        <hr>
+        <div id="usersList"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<input id="fileImport" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFile(event)">
+
+<!-- Edit Modal -->
+<div class="modal" tabindex="-1" id="editModal">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:12px;">
+      <div class="modal-header"><h5 class="modal-title">تعديل مشروع</h5><button type="button" class="btn-close" onclick="closeEdit()"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><input id="edit_name" class="form-control" placeholder="اسم المشروع"></div>
+        <div class="mb-2"><select id="edit_sales" class="form-select"></select></div>
+        <div class="mb-2"><select id="edit_engineer" class="form-select"></select></div>
+        <div class="mb-2"><select id="edit_status" class="form-select">
+          <option value="تحت الدراسة">تحت الدراسة</option>
+          <option value="أصبح أوردر">أصبح أوردر</option>
+          <option value="خسرنا المشروع">خسرنا المشروع</option>
+        </select></div>
+        <div class="small-muted">قيمة وقت البدء تتحدث تلقائيًا عند تحويل الحالة إلى "تحت الدراسة"</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeEdit()">إلغاء</button>
+        <button class="btn btn-primary" onclick="saveEdit()">حفظ التغييرات</button>
+      </div>
+    </
